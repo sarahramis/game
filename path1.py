@@ -5,6 +5,8 @@ import random
 height = 15
 width = 15
 n = 9
+np.random.seed(10)   # fix it so can compare the two game modes
+random.seed(10)
 cost_matrix = np.random.randint(0, n+1, size=(height, width))
 
 # https://stackoverflow.com/questions/40887753/display-matrix-values-and-colormap
@@ -37,7 +39,7 @@ def get_possible_moves(agent_location):
 
 # this version is purely to display the path
 cost_matrix_path = cost_matrix.copy()
-cost_matrix_path[0, 0] = -50  # mark this so the start of the path shows up
+cost_matrix_path[0, 0] = -50 # mark this so the start of the path shows up
 
 # find_best_move
 # This is based on rewarding moves the go right and down
@@ -49,11 +51,13 @@ cost_matrix_path[0, 0] = -50  # mark this so the start of the path shows up
 # to the location.
 # So a value of 10 moving to a square with time 7 will
 # lead ot the move;s value being 10-7 = 3
-def get_values(agent_location, moves):
+def get_values(agent_location, moves, game_mode):
     reward = 5
     values = []
     for move in moves:
         value = -1 * cost_matrix[move[0]][move[1]]
+        if game_mode == 1:
+            value = abs(value + cost_matrix[agent_location[0]][agent_location[1]])
         if move[0] > agent_location[0]:  # down
             value += reward
         if move[1] > agent_location[1]:
@@ -66,9 +70,9 @@ def get_values(agent_location, moves):
 # For each move to x,y the agent calculates C = TIME(x,y)-sum_of_move_costs
 # The agent then picks the x,y move that minimises C
 # if two versions of C are equal, the agent randomly picks one
-def find_best_move(agent_location):
+def find_best_move(agent_location, game_mode):
     gpm = get_possible_moves(agent_location)
-    values = get_values(agent_location, gpm)
+    values = get_values(agent_location, gpm, game_mode)
     max_move_index = values.index(max(values))
     return gpm[max_move_index], max(values)
 
@@ -78,6 +82,9 @@ def random_move(agent_location):
     return random.choice(gpm)
 
 
+game_mode = 0
+if game_mode == 1:
+    prev_agent_location = [0,0]
 agent_location = [0,0]
 agent_goal = [width-1, height-1]
 loop_count = 0
@@ -85,21 +92,31 @@ value_total = 0
 time_total = cost_matrix[0, 0]
 prev_squares = []
 while agent_location != agent_goal and loop_count < 100000:
-    next_best_move, value= find_best_move(agent_location)
+    next_best_move, value= find_best_move(agent_location, game_mode)
+    # note if the agent goes to a previous square, then
+    # make a random move to prevent getting into a loop
     if next_best_move in prev_squares:
         next_best_move = random_move(agent_location)
     prev_squares.append(next_best_move)
+    # try to make it visible on plot
     cost_matrix_path[next_best_move[0],next_best_move[1]] = -50
     print(next_best_move, value, agent_location)
     value_total += value
     loop_count += 1
+    if game_mode == 1:
+        prev_agent_location = agent_location
     agent_location = next_best_move
-    time_total += cost_matrix[agent_location[0],agent_location[1]]
+    if game_mode == 0:
+        time_total += cost_matrix[agent_location[0],agent_location[1]]
+    else:
+        time_total += abs(cost_matrix[agent_location[0],
+                        agent_location[1]]-cost_matrix[prev_agent_location[0],
+                                                       prev_agent_location[1]])
 
 
 print("Final agent location: ",agent_location)
 print("Total time: ", time_total)
-print("Number of moves: ", loop_count)
+print("Number of movesL: ", loop_count)
 
 fig2, ax2 = plt.subplots()
 
