@@ -5,7 +5,7 @@ from heapq import heappop, heappush
 
 
 def create_grid(height=15, width=15,
-                distribution_type="uniform", distr_params = (0,9), seed=10):
+                distribution_type="uniform", distr_params = (0,9), seed=-1):
     if seed > 0:
         np.random.seed(seed)   # fix it so can compare more easily for tests
         random.seed(seed)
@@ -18,7 +18,7 @@ def create_grid(height=15, width=15,
         # https://numpy.org/doc/stable/reference/random/generated/numpy.random.normal.html
         # for this type, distr params is (mean, sd)
         cost_matrix = np.random.normal(distr_params[0],
-                                       distr_params[1],
+                                       distr_params[1]+1,
                                        size=(height, width)) \
             # this version is purely to display the path
     cost_matrix_path = cost_matrix.copy()
@@ -51,7 +51,7 @@ def cost_matrix_to_nodes_edges(cost_matrix, game_mode):
                 edges[(node, tuple(adjacent_node))] = cost_matrix[adjacent_node[0]][adjacent_node[1]]
             else:   #assume game mode 1
                 edges[(node, tuple(adjacent_node))] = abs(cost_matrix[adjacent_node[0]][adjacent_node[1]] - cost_matrix[node[0]][node[1]])
-    print("edges: ", edges)
+    #print("edges: ", edges)
     return nodes, edges
 
 
@@ -149,7 +149,8 @@ def run_game(cost_matrix, cost_matrix_path, game_mode=0):
     value_total = 0
     time_total = cost_matrix[0, 0]
     prev_squares = []
-    while agent_location != agent_goal and loop_count < 100000:
+    loop_abort = 100000
+    while agent_location != agent_goal and loop_count < loop_abort:
         next_best_move, value= find_best_move(agent_location, game_mode, cost_matrix)
         # note if the agent goes to a previous square, then
         # make a random move to prevent getting into a loop
@@ -171,6 +172,8 @@ def run_game(cost_matrix, cost_matrix_path, game_mode=0):
                             agent_location[1]]-cost_matrix[prev_agent_location[0],
                                                            prev_agent_location[1]])
 
+    if loop_count == loop_abort:
+        print("LOOP ABORTED!")
     return agent_location, time_total, loop_count
 
 
@@ -282,7 +285,7 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
     return costs[(cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)]
 
 
-def run_experiments(list_of_params, plot_me=False):
+def run_experiments(list_of_params, num_repeats = 10, plot_me=False):
     # list_of_params is list of dicts:
     # {'height': number, 'width': number,
     # 'distribution_type': "normal" or "uniform",
@@ -290,6 +293,8 @@ def run_experiments(list_of_params, plot_me=False):
     # 'game_mode': 0 or 1, 'algorithm_type: "heuristic" or "dijkstra"}
     results = []
     for params in list_of_params:
+        print("*************************")
+        print(params)
         height = params['height']
         width = params['width']
         distribution_type = params['distribution_type']
@@ -297,30 +302,37 @@ def run_experiments(list_of_params, plot_me=False):
         game_mode = params['game_mode']
         # This is ignored for now
         algorithm_type = params['algorithm_type']
-        cost_matrix, cost_matrix_path = create_grid(height=height,
-                                                    width=width,
-                                                    distribution_type=distribution_type,
-                                                    distr_params=distribution_params,
-                                                    seed=10)
-        print(cost_matrix)
-        if algorithm_type == "heuristic":
-            print("Heuristic")
-            agent_location, time_total, loop_count = run_game(cost_matrix,
-                                                              cost_matrix_path,
-                                                              game_mode=game_mode)
-        else:       # assume it is dijkstra:
-            print("Dijkstra")
-            min_cost = dijkstra_on_matrix(cost_matrix, game_mode)
-            #agent_location = cost_matrix.shape  # it will always succeed
-            time_total = min_cost
-        # if it succeeded
-        #if agent_location == cost_matrix.shape:
-        results.append(time_total)
-        #print("Final agent location: ",agent_location)
-        #print("Total time: ", time_total)
-        #print("Number of moves: ", loop_count)
-        if plot_me and algorithm_type == "heuristic":  # for debug purposes
-            plot_results(cost_matrix, cost_matrix_path)
+        temp_results = []
+        for n in range(0, num_repeats):
+            print(n, end = ",")
+            cost_matrix, cost_matrix_path = create_grid(height=height,
+                                                        width=width,
+                                                        distribution_type=distribution_type,
+                                                        distr_params=distribution_params,
+                                                        seed=-1)
+            #print(cost_matrix)
+            if algorithm_type == "heuristic":
+                #print("Heuristic")
+                agent_location, time_total, loop_count = run_game(cost_matrix,
+                                                                  cost_matrix_path,
+                                                                  game_mode=game_mode)
+            else:       # assume it is dijkstra:
+                #print("Dijkstra")
+                min_cost = dijkstra_on_matrix(cost_matrix, game_mode)
+                #agent_location = cost_matrix.shape  # it will always succeed
+                time_total = min_cost
+            # if it succeeded
+            #if agent_location == cost_matrix.shape:
+            temp_results.append(time_total)
+            #print("Final agent location: ",agent_location)
+            #print("Total time: ", time_total)
+            #print("Number of moves: ", loop_count)
+            if plot_me and algorithm_type == "heuristic":  # for debug purposes
+                plot_results(cost_matrix, cost_matrix_path)
+            #print("Result: ", results[-1])
+        print("--")
+        print("Mean result:", sum(temp_results)/len(temp_results))
+        results.append(sum(temp_results)/len(temp_results))
     return results
 
 #cost_matrix, cost_matrix_path = create_grid(width = 2, height = 2, seed = 21)
@@ -331,15 +343,37 @@ def run_experiments(list_of_params, plot_me=False):
 #print(edges)
 #min_cost = dijkstra_on_matrix(cost_matrix)
 #print(min_cost)
+
+#build some experiments
+# parameters of experiments are:
+# size of grid: small 10x10, medium 50*50, large 200*200
+# game mode:  1 or 2 (0 or 1)
+# heuristic or dijkstra
+# distribution of cell numbers: normal or uniform
+# distribution of cell numbers: max and min values: small 0, 10; medium 0,100; large 0 to 1000
+
+experiments = []
+
+for game_mode in [1,2]:
+    for grid_sizes in [(10,10), (50,50), (200,200)]:
+        for distribution_bounds in [(0,10),(0,100), (0,1000)]:
+            for algorithm in ['heuristic', 'dijkstra']:
+                experiments.append({'height': grid_sizes[0],
+                                    'width': grid_sizes[1],
+                                    'distribution_type': 'uniform',
+                                    'distribution_params': (distribution_bounds[0], distribution_bounds[1]),
+                                    'game_mode': game_mode - 1,
+                                    'algorithm_type': algorithm})
+"""
 exp1 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
         'distribution_params': (0, 9),
         'game_mode': 1, 'algorithm_type': "heuristic"}
-"""exp2 = {'height': 15, 'width': 15, 'distribution_type': "uniform",
+exp2 = {'height': 15, 'width': 15, 'distribution_type': "uniform",
         'distribution_params': (0, 9),
-        'game_mode': 1, 'algorithm_type': "heuristic"}"""
+        'game_mode': 1, 'algorithm_type': "heuristic"}
 exp3 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
         'distribution_params': (0, 9),
         'game_mode': 1, 'algorithm_type': "dijkstra"}
-exp_list = [exp1, exp3]
-results = run_experiments(exp_list, plot_me=True)
-print(results)
+exp_list = [exp1, exp3]"""
+results = run_experiments(experiments, plot_me=False)
+#print(results)
