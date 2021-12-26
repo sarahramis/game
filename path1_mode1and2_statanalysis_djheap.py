@@ -22,11 +22,13 @@ def create_grid(height=15, width=15,
                                        size=(height, width)) \
             # this version is purely to display the path
     cost_matrix_path = cost_matrix.copy()
+    cost_matrix[0,0] = 0        # no point in having a cost on the first square or last square
+    cost_matrix[-1,-1] = 0
     cost_matrix_path[0, 0] = -50  # mark this so the start of the path shows up
     return cost_matrix, cost_matrix_path
 
 
-def cost_matrix_to_nodes_edges(cost_matrix):
+def cost_matrix_to_nodes_edges(cost_matrix, game_mode):
     # in order to run Dijkstra's we will put the
     # cost_matrix into the familiar nodes and edges form
     # for that algorithm
@@ -45,8 +47,11 @@ def cost_matrix_to_nodes_edges(cost_matrix):
             # value of the node / square being moved to
             #edges[str(node) + "-" + str(tuple(adjacent_node))] = cost_matrix[adjacent_node[0]][adjacent_node[1]]
             #print(node, adjacent_node)
-            edges[(node, tuple(adjacent_node))] = cost_matrix[adjacent_node[0]][adjacent_node[1]]
-    print("nodes, edges: ", nodes, edges)
+            if game_mode == 0:
+                edges[(node, tuple(adjacent_node))] = cost_matrix[adjacent_node[0]][adjacent_node[1]]
+            else:   #assume game mode 1
+                edges[(node, tuple(adjacent_node))] = abs(cost_matrix[adjacent_node[0]][adjacent_node[1]] - cost_matrix[node[0]][node[1]])
+    print("edges: ", edges)
     return nodes, edges
 
 
@@ -153,8 +158,8 @@ def run_game(cost_matrix, cost_matrix_path, game_mode=0):
         prev_squares.append(next_best_move)
         # try to make it visible on plot
         cost_matrix_path[next_best_move[0],next_best_move[1]] = -50
-        print(next_best_move, value, agent_location)
-        value_total += value
+        #print(next_best_move, value, agent_location)
+        value_total += cost_matrix[next_best_move[0],next_best_move[1]]
         loop_count += 1
         if game_mode == 1:
             prev_agent_location = agent_location
@@ -169,8 +174,8 @@ def run_game(cost_matrix, cost_matrix_path, game_mode=0):
     return agent_location, time_total, loop_count
 
 
-def dijkstra_on_matrix(cost_matrix):
-    nodes, edges = cost_matrix_to_nodes_edges(cost_matrix)
+def dijkstra_on_matrix(cost_matrix, game_mode):
+    nodes, edges = cost_matrix_to_nodes_edges(cost_matrix, game_mode)
 
     #print(nodes,edges)
     #input("pak")
@@ -195,17 +200,17 @@ def dijkstra_on_matrix(cost_matrix):
         # keys were made into strings.
         #start_end = edge.split("-")
         start_square = edge[0]
-        print("start_square:", start_square)
+        #print("start_square:", start_square)
         end_square = edge[1]
-        print("end_square:", end_square)
+        #print("end_square:", end_square)
         # cost is the same in both directions.
         # This fills out the empty dictionaries from the
         # dictionary comprehension above.
         squares_graph[start_square][end_square] = cost_matrix[end_square]
         squares_graph[end_square][start_square] = cost_matrix[start_square]
 
-    print(squares_graph)
-    print("RUNNING DIJKSTRA")
+    #print(squares_graph)
+    #print("RUNNING DIJKSTRA")
     #input("pak")
     large_number = np.sum(cost_matrix) * 1000000
     # this sets up the initial game_costs for each node
@@ -227,16 +232,16 @@ def dijkstra_on_matrix(cost_matrix):
     # priority queue last item will be the shortest distance from (0,0) to the
     # target square (n,n)
     while len(priority_queue) > 0:
-        counter +=1
-        print(f"*************  {counter}  **********")
-        print("len(priority_queue): ",len(priority_queue))
+        #counter +=1
+        #print(f"*************  {counter}  **********")
+        #print("len(priority_queue): ",len(priority_queue))
         # Note - it's only current_time for game mode 1, but using time for
         # easy reading of code.
         # Get the highest priority (lowest time numbered), square from the
         # queue using heappop.
         # It will also give us the current destination square to work on.
         current_time, current_square = heappop(priority_queue)
-        print("priority_queue: ",priority_queue)
+        #print("priority_queue: ",priority_queue)
         #print("current_time, current_square = heappop(priority_queue)")
         #print("current_time, current_square: ",current_time, current_square)
         # Check if the best time on the priority queue is less than
@@ -244,7 +249,7 @@ def dijkstra_on_matrix(cost_matrix):
         # sub-destination:
         if current_time <= costs[current_square]:
             #print("current_time <= costs[current_square]:")
-            print("costs[current_square]: ", costs[current_square])
+            #print("costs[current_square]: ", costs[current_square])
             #print("squares_graph[current_square].items(): ", squares_graph[current_square].items())
             #print("for neighbour, time in squares_graph[current_square].items():")"""
             # Now go through all neighbours and times for the current
@@ -271,7 +276,7 @@ def dijkstra_on_matrix(cost_matrix):
                     costs[neighbour] = total_time
                     #print("heappush(priority_queue, (total_time, neighbour))")
                     heappush(priority_queue, (total_time, neighbour))
-                    print("heap priority queue: ", priority_queue)
+                    #print("heap priority queue: ", priority_queue)
 
     # final val in dictionary should be cost of shortest path to far left
     return costs[(cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)]
@@ -297,32 +302,44 @@ def run_experiments(list_of_params, plot_me=False):
                                                     distribution_type=distribution_type,
                                                     distr_params=distribution_params,
                                                     seed=10)
-        agent_location, time_total, loop_count = run_game(cost_matrix,
-                                                          cost_matrix_path,
-                                                          game_mode=game_mode)
+        print(cost_matrix)
+        if algorithm_type == "heuristic":
+            print("Heuristic")
+            agent_location, time_total, loop_count = run_game(cost_matrix,
+                                                              cost_matrix_path,
+                                                              game_mode=game_mode)
+        else:       # assume it is dijkstra:
+            print("Dijkstra")
+            min_cost = dijkstra_on_matrix(cost_matrix, game_mode)
+            #agent_location = cost_matrix.shape  # it will always succeed
+            time_total = min_cost
         # if it succeeded
-        if agent_location == cost_matrix.shape:
-            results.append((time_total, loop_count))
-        print("Final agent location: ",agent_location)
-        print("Total time: ", time_total)
-        print("Number of moves: ", loop_count)
-        if plot_me:  # for debug purposes
+        #if agent_location == cost_matrix.shape:
+        results.append(time_total)
+        #print("Final agent location: ",agent_location)
+        #print("Total time: ", time_total)
+        #print("Number of moves: ", loop_count)
+        if plot_me and algorithm_type == "heuristic":  # for debug purposes
             plot_results(cost_matrix, cost_matrix_path)
     return results
 
-cost_matrix, cost_matrix_path = create_grid(width = 2, height = 2, seed = 21)
+#cost_matrix, cost_matrix_path = create_grid(width = 2, height = 2, seed = 21)
 #cost_matrix[(0,0)] = 0  #since we start at the top left
 #nodes, edges = cost_matrix_to_nodes_edges(cost_matrix)
-print(cost_matrix)
+#print(cost_matrix)
 #print(nodes)
 #print(edges)
-min_cost = dijkstra_on_matrix(cost_matrix)
-print(min_cost)
-"""    exp1 = {'height': 15, 'width': 15, 'distribution_type': "uniform",
-            'distribution_params': (0, 9),
-            'game_mode': 0, 'algorithm_type': "heuristic"}
-    exp2 = {'height': 15, 'width': 15, 'distribution_type': "uniform",
-            'distribution_params': (0, 9),
-            'game_mode': 1, 'algorithm_type': "heuristic"}
-    exp_list = [exp1, exp2]
-    results = run_experiments(exp_list, plot_me=True)"""
+#min_cost = dijkstra_on_matrix(cost_matrix)
+#print(min_cost)
+exp1 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
+        'distribution_params': (0, 9),
+        'game_mode': 1, 'algorithm_type': "heuristic"}
+"""exp2 = {'height': 15, 'width': 15, 'distribution_type': "uniform",
+        'distribution_params': (0, 9),
+        'game_mode': 1, 'algorithm_type': "heuristic"}"""
+exp3 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
+        'distribution_params': (0, 9),
+        'game_mode': 1, 'algorithm_type': "dijkstra"}
+exp_list = [exp1, exp3]
+results = run_experiments(exp_list, plot_me=True)
+print(results)
