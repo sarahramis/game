@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import random
 import heapq
 import copy
+import statistics
 
 # makes outputs easier to read
 ROUND = True
@@ -18,6 +19,7 @@ class Grid:
             np.random.seed(seed)  # fix it so can compare more easily for tests
             random.seed(seed)
         self.distribution = distribution
+        self.distr_params = distr_params
         if distribution == "uniform":
             distribution = "randint"
         # this allows the user to pass an np function such as: randint, poisson,
@@ -40,10 +42,9 @@ class Grid:
 
     def __str__(self):
         return_str = f"Grid, size ({self.height},{self.width})\n"
-        return_str += f"generated using a {self.distribution} distribution\n"
+        return_str += f"generated using a {self.distribution} distribution {self.distr_params}\n"
         return_str += str(self.cost_matrix)
         return return_str
-
 
 class Agent:
     def __init__(self, location=(0,0),
@@ -401,13 +402,84 @@ class Game:
         return return_str
 
 
+# This class runs a series of games N times.
+# For each of the N runs the average and SD of the lowest_cost is stored.
+class Experiment:
+    def __init__(self, game_list=[], algorithm = "heuristic", repeats=30):
+        # a list of games
+        game_list = game_list
+        self.repeats = repeats
+        self.results = []
+        self.algorithm = algorithm
+
+    def generate_game_list(self, params_list):
+        # params_list is of the form:
+        # [(game modes), (grid sizes), (distribution type/param pairs)]
+        # e.g. [(1,2), ((10,10),(50,50),(100,100)),
+        #       (("normal",(10,3)), ("normal", (50,15)),
+        #           ("normal", (100,30)), ("uniform",(0,10)),
+        #           ("uniform",(0,50)), ("uniform",(0,100))) ]
+        game_modes = params_list[0]
+        grid_sizes = params_list[1]
+        distributions = params_list[2]
+        self.game_list = []
+        for gm in game_modes:
+            for gs in grid_sizes:
+                for d, d_p in distributions:
+                    for rep in range(self.repeats):
+                        grid = Grid(height=gs[0], width=gs[1],
+                                    distribution=d, distr_params=d_p)
+                        self.game_list.append(Game(game_mode=gm,
+                                              grid=grid))
 
 
-grd = Grid(width=15, height=15, distribution="randint",distr_params=[0,10])
+    def run_experiments(self, verbose=False, export="results.csv"):
+        if export != "":
+            f = open(export, 'w')
+            to_write = ["algorithm", "game_mode", "grid.height", "grid.width", "grid.distribution",
+                        "grid.distr_params","grid.distr_params", "mean shortest path", "SD shortest path"]
+            f.write(','.join(to_write)+"\n")
+        # need to create new result element after each self.repeats repeats
+        repeats_index = 0
+        result = []
+        for game in self.game_list:
+            if verbose:
+                print(game)
+            game.run_game(path_algorithm=self.algorithm)
+            result.append(game.lowest_cost)
+            repeats_index += 1
+            # need to create new result element after each self.repeats repeats
+            if repeats_index % self.repeats == 0:
+                #print(game)
+                if ROUND:
+                    stats = (round(statistics.mean(result),0), round(statistics.stdev(result),0))
+                else:
+                    stats = (statistics.mean(result), statistics.stdev(result))
+                self.results.append(stats)
+                if export != "":
+                    if len(game.grid.distr_params) == 2:
+                        to_write = [self.algorithm, game.game_mode,game.grid.height, game.grid.width, game.grid.distribution, *game.grid.distr_params, *stats]
+                    else:
+                        to_write = [self.algorithm, game.game_mode, game.grid.height, game.grid.width,
+                                    game.grid.distribution, game.grid.distr_params[0],0, *stats]
+                    to_write = [str(tw) for tw in to_write]
+                    to_write = ','.join(to_write)+"\n"
+                    f.write(to_write)
+                result = []
+        if export != "":
+            f.close()
+
+    def __str__(self):
+        result_str = f"Experiment {self.algorithm}\n"
+        for g in self.game_list:
+            result_str += str(g)
+        return result_str
+
+#grd = Grid(width=15, height=15, distribution="randint",distr_params=[0,10])
 #g = Grid(distribution="normal", distr_params=[150,50])
 #print(g)
 #g.plot_grid()
-g = Game(grid=grd)
+"""g = Game(grid=grd)
 print(g)
 g.grid.plot_grid(show_values=True)
 g.run_game(path_algorithm="heuristic")
@@ -418,4 +490,16 @@ g = Game(grid=grd)
 g.run_game(path_algorithm="dijkstra")
 print(g.shortest_path)
 print(g.lowest_cost)
-g.plot_game_result(show_values=True)
+g.plot_game_result(show_values=True)"""
+
+#e = Experiment(algorithm="heuristic")
+param_list = [(1,2), ((5,5),(10,10)),
+               (("normal",(10,3)), ("normal", (50,15)),
+                   ("normal", (100,30)), ("uniform",(0,10)),
+                   ("uniform",(0,50)), ("uniform",(0,100))) ]
+#e.generate_game_list(param_list)
+#print(e)
+#e.run_experiments()
+e2 = Experiment(algorithm="dijkstra")
+e2.generate_game_list(param_list)
+e2.run_experiments(export="results_d.csv")
