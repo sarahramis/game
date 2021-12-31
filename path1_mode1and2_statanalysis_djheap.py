@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from heapq import heappop, heappush
-
+#from heapq import heappop, heappush
+import heapq
 
 def create_grid(height=15, width=15,
                 distribution_type="uniform", distr_params = (0,9), seed=-1):
@@ -179,8 +179,9 @@ def run_game(cost_matrix, cost_matrix_path, game_mode=0):
 
 def dijkstra_on_matrix(cost_matrix, game_mode):
     nodes, edges = cost_matrix_to_nodes_edges(cost_matrix, game_mode)
-
-    #print(nodes,edges)
+    path = []
+    #print(nodes)
+    #print(edges)
     #input("pak")
     # https://www.youtube.com/watch?v=VnTlW572Sc4
     # This builds a new dictionary squares_graph
@@ -214,7 +215,6 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
 
     #print(squares_graph)
     #print("RUNNING DIJKSTRA")
-    #input("pak")
     large_number = np.sum(cost_matrix) * 1000000
     # this sets up the initial game_costs for each node
     # to a large number, so any path will be better
@@ -234,6 +234,7 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
     counter = 0
     # priority queue last item will be the shortest distance from (0,0) to the
     # target square (n,n)
+    prev_node = {}
     while len(priority_queue) > 0:
         #counter +=1
         #print(f"*************  {counter}  **********")
@@ -243,7 +244,7 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
         # Get the highest priority (lowest time numbered), square from the
         # queue using heappop.
         # It will also give us the current destination square to work on.
-        current_time, current_square = heappop(priority_queue)
+        current_time, current_square = heapq.heappop(priority_queue)
         #print("priority_queue: ",priority_queue)
         #print("current_time, current_square = heappop(priority_queue)")
         #print("current_time, current_square: ",current_time, current_square)
@@ -258,6 +259,7 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
             # Now go through all neighbours and times for the current
             # sub-destination being looked at.
             # (This was the purpose of building the squares graph earlier)
+
             for neighbour, time in squares_graph[current_square].items():
                 """print("neighbour, time: ",neighbour, time)
                 print("total_time = current_time + time")"""
@@ -277,12 +279,113 @@ def dijkstra_on_matrix(cost_matrix, game_mode):
                     print("costs[neighbour] ", costs[neighbour])
                     print("total_time: ", total_time)"""
                     costs[neighbour] = total_time
+                    #https://www.udacity.com/blog/2021/10/implementing-dijkstras-algorithm-in-python.html
+                    prev_node[neighbour] = current_square
+                    #print(neighbour, total_time)
                     #print("heappush(priority_queue, (total_time, neighbour))")
-                    heappush(priority_queue, (total_time, neighbour))
+                    heapq.heappush(priority_queue, (total_time, neighbour))
+                    #print("total_time,neighbour: ", total_time,neighbour)
                     #print("heap priority queue: ", priority_queue)
+                print("priority_queue ", priority_queue)
+    #print(cost_matrix)
+    #print(costs)
+    #convert to grid
+    """print(costs)
+    input("pak")
+    pq2 = []"""
+    best_cost = costs[(cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)]
 
+    grid = np.zeros((cost_matrix.shape[0],cost_matrix.shape[1]))
+    for k in costs.keys():
+        #print(costs[k])
+        #print(k)
+        #input("pak")
+
+        #heapq.heappush(pq2,(costs[k],k))
+        grid[k] = costs[k]
+    #print(cost_matrix)
+    #print(grid)
+    """print("pq2 ", pq2)
+    path = [(3,3)]
+    goal = (cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)
+    for i in range(len(pq2)):
+        m = heapq.heappop(pq2)[1]
+        #print("m ",m)
+        if m != path[0]:
+            if list(m) in get_possible_moves(path[-1], cost_matrix):
+                path.append(m)
+        if m == goal:
+            break
+    print("path ",path)
+    input("pak")"""
+
+    """
+    fig, ax = plt.subplots()
+    ax.matshow(grid, cmap=plt.cm.Pastel1)
+    fig.show()
+    input("pak")
+    
+ 
+    print(grid)
+    #minimum_neighbour(grid,(cost_matrix.shape[0]-1,cost_matrix.shape[1]-1))"""
+    #print(grid)
+    #print("generate_dijkstra_path(grid) ", generate_dijkstra_path(grid))
+    path = []
+    print(grid)
+    # https://www.udacity.com/blog/2021/10/implementing-dijkstras-algorithm-in-python.html
+    node = (cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)
+    while node != (0,0):
+        path.append(node)
+        node = prev_node[node]
+    path.append((0,0))
+    print("Path ", path)
+    print("prev_node ", prev_node)
+    input("pak")
     # final val in dictionary should be cost of shortest path to far left
-    return costs[(cost_matrix.shape[0]-1,cost_matrix.shape[1]-1)]
+    return best_cost
+
+# returns the smallest location from where you are,
+# or a random one if all same.
+def minimum_neighbour(grid,location, seen):
+    locs = get_possible_moves(location,grid)
+    #print("locs ", locs)
+    loc_costs = [grid[l[0]][l[1]] for l in locs]
+    #print("loc_costs", loc_costs)
+    #print(locs, loc_costs)
+    #print(grid)
+    #print(min(loc_costs))
+    #print(locs)
+    min_loc = (grid.shape[0]-1, grid.shape[1]-1)
+    #print("seen ",seen)
+    while min_loc in seen:
+        loc_costs = loc_costs
+        try:
+            min_loc = tuple(locs[loc_costs.index(min(loc_costs))])
+        except IndexError:
+            print("IndexError:")
+            print("locs ", locs)
+            print("loc_costs ", loc_costs)
+            print("min(loc_costs) ", min(loc_costs))
+            print("loc_costs.index(min(loc_costs)) ",loc_costs.index(min(loc_costs)))
+            print(grid)
+        #print("min_loc in loop = ", min_loc)
+        locs.pop(loc_costs.index(min(loc_costs)))
+        loc_costs.pop(loc_costs.index(min(loc_costs)))
+    #print("min_loc ", min_loc)
+    return min_loc
+
+def generate_dijkstra_path(grid):
+    print(grid)
+    location = (grid.shape[0]-1, grid.shape[1]-1)
+    seen = []
+    path = []
+    while location[0] >0 or location[1] >0:
+        path.append(location)
+        print("path ",path)
+        location = minimum_neighbour(grid, location, path)
+        print(location)
+        #print(location)
+    return path
 
 
 def run_experiments(list_of_params, num_repeats = 10, plot_me=False):
@@ -355,7 +458,7 @@ def run_experiments(list_of_params, num_repeats = 10, plot_me=False):
 experiments = []
 
 for game_mode in [1,2]:
-    for grid_sizes in [(10,10), (50,50), (200,200)]:
+    for grid_sizes in [(8,7), (50,50), (200,200)]:
         for distribution_bounds in [(0,10),(0,100), (0,1000)]:
             for algorithm in ['heuristic', 'dijkstra']:
                 experiments.append({'height': grid_sizes[0],
@@ -364,6 +467,9 @@ for game_mode in [1,2]:
                                     'distribution_params': (distribution_bounds[0], distribution_bounds[1]),
                                     'game_mode': game_mode - 1,
                                     'algorithm_type': algorithm})
+#from pprint import pprint
+#pprint(experiments)
+#input("pak")
 """
 exp1 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
         'distribution_params': (0, 9),
@@ -375,5 +481,5 @@ exp3 = {'height': 4, 'width': 4, 'distribution_type': "uniform",
         'distribution_params': (0, 9),
         'game_mode': 1, 'algorithm_type': "dijkstra"}
 exp_list = [exp1, exp3]"""
-results = run_experiments(experiments, plot_me=False)
+results = run_experiments([experiments[1]], num_repeats = 1, plot_me=True)
 #print(results)
